@@ -1,18 +1,26 @@
 import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 
 df = pd.read_csv("data/processed/foods_cleaned.csv")
 features = ["Protein", "Fat", "Carbs", "Fibre"]
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(df[features])
 
-model = NearestNeighbors(
-    n_neighbors=6,
-    metric="euclidean"
+kmeans = KMeans(
+    n_clusters=5,
+    random_state=42,
+    n_init=10
 )
 
-model.fit(X_scaled)
+df["Cluster"] = kmeans.fit_predict(X_scaled)
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(X_scaled)
+df["PC1"] = X_pca[:, 0]
+df["PC2"] = X_pca[:, 1]
 
 def search_foods(query):
     matches = df[
@@ -28,34 +36,42 @@ def find_similar_foods(food_code, n=5):
         return pd.DataFrame()
 
     food_index = matches[0]
+    cluster = df.iloc[food_index]["Cluster"]
 
-    distances, indices = model.kneighbors(
-        X_scaled[food_index].reshape(1, -1),
-        n_neighbors=min(n + 1, len(df))
+    candidates = df[
+        (df["Cluster"] == cluster) &
+        (df.index != food_index)
+    ].copy()
+
+    selected_point = X_pca[food_index] # euclidean distance calculation
+
+    candidates["Distance"] = np.sqrt(
+        (candidates["PC1"] - selected_point[0]) ** 2
+        + (candidates["PC2"] - selected_point[1]) ** 2
     )
 
-    results = []
+    results = candidates.nsmallest(n, "Distance").copy()
+    results["Distance"] = results["Distance"].round(3)
 
-    for distance, index in zip(distances[0], indices[0]):
-        if index == food_index:
-            continue
-
-        results.append({
-            "Food": df.iloc[index]["Food_Description_EN"],
-            "Protein": df.iloc[index]["Protein"],
-            "Fat": df.iloc[index]["Fat"],
-            "Carbs": df.iloc[index]["Carbs"],
-            "Fibre": df.iloc[index]["Fibre"],
-            "Calories": df.iloc[index]["Calories"],
-            "Distance": round(distance, 3)
-        })
-
-        if len(results) == n:
-            break
-
-    return pd.DataFrame(results)
+    return results[
+        [
+            "Food_Description_EN",
+            "Protein",
+            "Fat",
+            "Carbs",
+            "Fibre",
+            "Calories",
+            "Cluster",
+            "Distance"
+        ]
+    ].rename(columns={"Food_Description_EN": "Food"})
 
 if __name__ == "__main__":
+    print(
+        f"PCA variance explained: "
+        f"{pca.explained_variance_ratio_.sum():.2%}"
+    )
+
     query = input("Search for a food: ")
     matches = search_foods(query)
 
