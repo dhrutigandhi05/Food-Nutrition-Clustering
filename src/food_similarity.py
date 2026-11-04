@@ -1,9 +1,8 @@
 import pandas as pd
-import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.metrics.pairwise import euclidean_distances
 
 df = pd.read_csv("data/processed/foods_cleaned.csv")
 features = ["Protein", "Fat", "Carbs", "Fibre"]
@@ -43,12 +42,13 @@ def find_similar_foods(food_code, n=5):
         (df.index != food_index)
     ].copy()
 
-    selected_point = X_pca[food_index] # euclidean distance calculation
+    selected_point = X_scaled[food_index].reshape(1, -1)
+    candidate_indices = candidates.index.to_numpy()
 
-    candidates["Distance"] = np.sqrt(
-        (candidates["PC1"] - selected_point[0]) ** 2
-        + (candidates["PC2"] - selected_point[1]) ** 2
-    )
+    candidates["Distance"] = euclidean_distances(
+        selected_point,
+        X_scaled[candidate_indices]
+    )[0]
 
     results = candidates.nsmallest(n, "Distance").copy()
     results["Distance"] = results["Distance"].round(3)
