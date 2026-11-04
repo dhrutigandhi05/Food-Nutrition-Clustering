@@ -1,21 +1,14 @@
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
+import joblib
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.decomposition import PCA
 
 df = pd.read_csv("data/processed/foods_cleaned.csv")
 features = ["Protein", "Fat", "Carbs", "Fibre"]
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(df[features])
-
-kmeans = KMeans(
-    n_clusters=5,
-    random_state=42,
-    n_init=10
-)
-
-df["Cluster"] = kmeans.fit_predict(X_scaled)
+scaler = joblib.load("models/scaler.pkl")
+kmeans = joblib.load("models/kmeans.pkl")
+X_scaled = scaler.transform(df[features])
+df["Cluster"] = kmeans.predict(X_scaled)
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X_scaled)
 df["PC1"] = X_pca[:, 0]
